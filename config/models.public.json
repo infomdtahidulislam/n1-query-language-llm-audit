@@ -1,0 +1,149 @@
+{
+  "study": "N1 — query-language effects on commercial recommendations (EN / BN / Banglish)",
+  "roster_last_changed": "2026-08-31",
+  "config_freeze_rule": "route + roster frozen from the smoke test until the last call (prereg C.2, F10)",
+  "gateway_base": "<gateway URL redacted for double-anonymous review — VENUE-PLAN §1.4>",
+  "auth_note": "API key via GATEWAY_KEY environment variable only — never in files or repos",
+  "defaults": {
+    "subjects": {
+      "temperature": 1.0,
+      "max_tokens": 2000,
+      "system_prompt": null,
+      "log": [
+        "usage",
+        "finish_reason",
+        "model",
+        "timestamps"
+      ]
+    },
+    "extractors": {
+      "temperature": 0,
+      "response_format": "json",
+      "max_tokens": 12000,
+      "reasoning": {
+        "enabled": false
+      },
+      "provider": {
+        "order": [
+          "Alibaba"
+        ],
+        "allow_fallbacks": false
+      },
+      "note": "max_tokens 12000: at 2000 (the inherited subject default) a reasoning extractor spends the whole budget thinking and returns no JSON — measured 28 empty extractions of 480 on 10 Sep 2026, and 58% empty on a 4000 cap. reasoning off: measured 0 reasoning tokens per answer on the direct route vs 97-98% of completion through the proxy. provider pinned: 13 providers served one extraction pass unpinned and the 12 fallback routes returned 88% empty; providers also differ in quantization and in which parameters they honour."
+    }
+  },
+  "subjects": [
+    {
+      "name": "GPT-5.6 Luna",
+      "id": "gpt-5.6-luna",
+      "family": "OpenAI",
+      "note": "the free-tier ChatGPT default — what an ordinary user gets without choosing a model"
+    },
+    {
+      "name": "Gemini 3 Flash",
+      "id": "gemini-3-flash",
+      "family": "Google",
+      "note": "plain consumer default; NOT a -high / -thinking preset id (those pin a high-reasoning mode no default user gets); verified with Bangla + daṛi round-trip 31 Aug 2026"
+    },
+    {
+      "name": "Claude Sonnet 5",
+      "id": "claude-sonnet-5",
+      "family": "Anthropic",
+      "note": "consumer workhorse"
+    },
+    {
+      "name": "Grok 4.6",
+      "id": "grok-4.6",
+      "family": "xAI",
+      "note": "heaviest reasoning burn; most expensive subject — pilot prices it"
+    },
+    {
+      "name": "Kimi K3",
+      "id": "kimi-k3",
+      "family": "Moonshot",
+      "temperature": 1,
+      "note": "ONLY accepts temperature=1 (explicit override, approved 2 Sep 2026); old moonshotai/ prefix removed"
+    },
+    {
+      "name": "DeepSeek V4-Flash",
+      "id": "deepseek-v4-flash",
+      "family": "DeepSeek",
+      "max_tokens": 8000,
+      "note": "open weights (MIT); reasoning-by-default. Explicit max_tokens override, 10 Sep 2026: at the shared 2000-token budget the smoke test measured finish_reason=length on 53 of its 80 answers (66.2%) and 25 answers came back EMPTY - hidden reasoning consumed the whole budget. No other subject reached the cap even once (0.0% length). Raised to 8000 on that evidence, before the freeze, per M3/C.2; the brief sets max_tokens >= 2000 as a floor, and 2000 defeats its own purpose for this model."
+    }
+  ],
+  "extractors": {
+    "primary": {
+      "name": "Qwen3.8-Flash",
+      "id": "qwen/qwen3.8-flash",
+      "scope": "all answers",
+      "note": "family-independent of all subjects and of the Meta cross-check. Adopted 11 Sep 2026 in place of Qwen3.8-27B on a 120-answer head-to-head over the same real answers, same route, same settings: 120/120 schema-valid and 0 untraceable prices (27B 120/120 and 0; Qwen3.7-Flash 119/120 and 1 fabricated amount); Bangla+dari round trip byte-identical, which the 27B fails by dropping a digit from a 5-digit Bangla numeral; bn-arm answers 30/30 `bn` and en-arm 30/30 `en`; brand-set F1 0.892 vs the 27B's 0.894, where the 27B's figure is self-agreement against its own earlier run. Measured $0.00053/answer vs $0.00171 for the 27B. OPEN: it labels `answer_language` mixed on ~11% of answers against the 27B's ~0.8%, confined to the bl and bl_translit arms; which is correct is decided by the E.4 pilot human labels, not by this screen. Previous primary: qwen/qwen3.8-27b."
+    },
+    "cross_check": {
+      "name": "Muse Glimmer 30B",
+      "id": "meta/muse-glimmer-30b",
+      "scope": "stratified ~2000 subsample",
+      "note": "long thinker — needs a HIGH max_tokens, not a low one. The previous note said 'keep max_tokens 2000'; that is the cap which starved the primary extractor into 28 empty rows (corrected 11 Sep 2026). Cross-check selection is decided by the G.2 accuracy contest, not by cost. G.2 CONTEST WON 16 Sep 2026 over the 108 Round-1 answers vs the three-rater consensus: brand-set F1 0.9854 vs Scout 0.9768 — Glimmer keeps the cross-check slot (prereg v0.55).",
+      "params": {
+        "provider": {
+          "order": [
+            "DeepInfra"
+          ],
+          "allow_fallbacks": false
+        },
+        "reasoning": {
+          "enabled": true
+        },
+        "_note": "G.2 frozen contest config 16 Sep 2026: probe iter-1 (reasoning inherited OFF) rejected HTTP 400 'Reasoning is mandatory for this endpoint'; iter-2 with reasoning ON served clean by DeepInfra (974 reasoning tokens, valid JSON, finish stop, 54 s) — provider pinned to the probe's server. max_tokens inherits the frozen 12000. Error and success records retained under runs/."
+      }
+    },
+    "fallback": {
+      "name": "Llama 4 Scout",
+      "id": "meta-llama/llama-4-scout",
+      "scope": "RETIRED per G.2 (contest lost 16 Sep 2026); records retained",
+      "params": {
+        "provider": {
+          "order": [
+            "DeepInfra"
+          ],
+          "allow_fallbacks": false
+        },
+        "reasoning": null,
+        "response_format": null,
+        "_note": "G.2 frozen contest config 16 Sep 2026, iteration 4: probes 1-3 all returned HTTP 404 with an unchanging 3->1->0 routing funnel — including under the Google pin — so the single endpoint surviving the account-side filter is not Google. DeepInfra is proven reachable on this account (it served the Glimmer probe) but does not support response_format for Scout, so: provider pinned DeepInfra, response_format omitted for THIS ROLE ONLY (null; the M2 parser handles fenced/prose-wrapped JSON by design and the frozen instruction demands JSON), reasoning key removed, max_tokens inherits the frozen 12000 (DeepInfra completion cap 16384). response_format joins the cache key for roles that override it. All error records retained under runs/errors."
+      }
+    }
+  },
+  "design": {
+    "queries": 250,
+    "language_arms": [
+      "en",
+      "bn",
+      "banglish"
+    ],
+    "categories": 10,
+    "repetitions": {
+      "min": 5,
+      "rule": "pilot-calibrated; raise to 7 if bootstrap SE exceeds prereg threshold"
+    },
+    "outcome_codes": [
+      "valid",
+      "language_reversion",
+      "refusal",
+      "degenerate"
+    ],
+    "redraw_rule": "degenerate answers redrawn at most twice at shifted sample id; logged, never repaired"
+  },
+  "phases": [
+    "smoke_test_360_subject_calls_plus_120_bl_translit",
+    "prereg_freeze_OSF",
+    "pilot_50_per_model_plus_extractor_validation",
+    "main_run",
+    "analysis",
+    "writeup"
+  ],
+  "extractor_gateway_base": "https://openrouter.ai/api/v1",
+  "key_env": "GATEWAY_KEY",
+  "extractor_key_env": "OPENROUTER_KEY",
+  "routing_note": "Subjects are the object of study and stay on the gateway their answers were collected through (C.7 consistency with the smoke test). The extractor is the measuring instrument and runs direct on OpenRouter, where `reasoning` is honoured and the provider can be pinned; the reseller proxy silently discarded both. Every extraction in a phase uses ONE route. Keys are read from the named environment variables only, never from a file (C.2)."
+}
